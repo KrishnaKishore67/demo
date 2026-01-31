@@ -1,38 +1,105 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Participant Tracker</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <title>Ultrasonic Listener</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    input {
+      font-size: 18px;
+      padding: 8px;
+      width: 100%;
+    }
+    button {
+      font-size: 18px;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    #log {
+      margin-top: 20px;
+      font-family: monospace;
+    }
+  </style>
 </head>
-
 <body>
-<h2>Participant Status</h2>
 
-<button id="startBtn">🎤 Start Checkpoint Detection</button>
+<h2>Participant Listener</h2>
 
-<p id="status">Waiting to start…</p>
-<p id="gps">GPS: --</p>
+<input id="bib" placeholder="Enter Bib Number" />
+<button onclick="startListening()">START LISTENING</button>
+
+<div id="log"></div>
 
 <script>
-/* =====================
-   CONFIG
-===================== */
-const TARGET_FREQ = 17000;
-const THRESHOLD = 120;
+let audioCtx;
+let analyser;
+let dataArray;
 
-const CHECKPOINT = {
-  lat: 9.5916,
-  lng: 76.5222,
-  radius: 40
+// Must match beacon frequencies
+const knownFrequencies = {
+  "CP1": [18900, 19100, 18700]
 };
 
-let audioCtx, analyser, micStream;
-let listening = false;
+function startListening() {
+  const bib = document.getElementById("bib").value;
+  if (!bib) {
+    alert("Enter bib number");
+    return;
+  }
 
-/* =====================
-   DISTANCE
-===================== */
-function distance(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180*
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    audioCtx = new AudioContext();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    detect(bib);
+  });
+}
+
+function detect(bib) {
+  analyser.getByteFrequencyData(dataArray);
+
+  const nyquist = audioCtx.sampleRate / 2;
+
+  for (let cp in knownFrequencies) {
+    let hits = 0;
+
+    knownFrequencies[cp].forEach(freq => {
+      const index = Math.round(freq / nyquist * dataArray.length);
+      if (dataArray[index] > 160) hits++;
+    });
+
+    if (hits >= 2) {
+      logCheckpoint(cp, bib);
+    }
+  }
+
+  requestAnimationFrame(() => detect(bib));
+}
+
+function logCheckpoint(cp, bib) {
+  const time = new Date().toISOString();
+
+  navigator.geolocation.getCurrentPosition(pos => {
+    const entry = `
+${time}
+Bib: ${bib}
+Checkpoint: ${cp}
+Lat: ${pos.coords.latitude}
+Lng: ${pos.coords.longitude}
+------------------
+`;
+    document.getElementById("log").innerText += entry;
+  });
+}
+</script>
+
+</body>
+</html>

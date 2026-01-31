@@ -1,121 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Participant Tracker</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-    }
-    #status {
-      font-size: 20px;
-      font-weight: bold;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Participant Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
+
 <body>
+<h2>Participant Status</h2>
 
-  <h2>Participant Tracker</h2>
-  <p id="status">📡 Waiting for GPS...</p>
-  <p id="gps">GPS: --</p>
+<button id="startBtn">🎤 Start Checkpoint Detection</button>
 
-  <script>
-    /* =========================
-       CONFIGURATION
-    ========================== */
-    const TARGET_FREQ = 16000; // near-ultrasonic (works on phones)
-    const THRESHOLD = 140;
+<p id="status">Waiting to start…</p>
+<p id="gps">GPS: --</p>
 
-    const CHECKPOINT = {
-      lat: 9.5916,   // CHANGE to checkpoint latitude
-      lng: 76.5222,  // CHANGE to checkpoint longitude
-      radius: 30     // meters
-    };
+<script>
+/* =====================
+   CONFIG
+===================== */
+const TARGET_FREQ = 17000;
+const THRESHOLD = 120;
 
-    let ultrasonicDetected = false;
-    let listening = false;
+const CHECKPOINT = {
+  lat: 9.5916,
+  lng: 76.5222,
+  radius: 40
+};
 
-    /* =========================
-       DISTANCE FUNCTION
-    ========================== */
-    function distance(lat1, lon1, lat2, lon2) {
-      const R = 6371000;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      return R * Math.sqrt(dLat * dLat + dLon * dLon);
-    }
+let audioCtx, analyser, micStream;
+let listening = false;
 
-    /* =========================
-       ULTRASONIC LISTENER
-    ========================== */
-    async function startListening() {
-      if (listening || ultrasonicDetected) return;
-      listening = true;
-
-      document.getElementById("status").innerText =
-        "🎧 Near checkpoint — listening for signal...";
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioCtx = new AudioContext();
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(analyser);
-
-      const buffer = new Uint8Array(analyser.frequencyBinCount);
-      const nyquist = audioCtx.sampleRate / 2;
-      const targetIndex = Math.round(
-        TARGET_FREQ / nyquist * buffer.length
-      );
-
-      function allowDetection() {
-        analyser.getByteFrequencyData(buffer);
-
-        if (buffer[targetIndex] > THRESHOLD && !ultrasonicDetected) {
-          ultrasonicDetected = true;
-          document.getElementById("status").innerText =
-            "✅ CHECKPOINT VERIFIED";
-          console.log("Checkpoint verified via acoustic beacon");
-          return;
-        }
-        requestAnimationFrame(allowDetection);
-      }
-
-      allowDetection();
-    }
-
-    /* =========================
-       GPS TRACKING
-    ========================== */
-    navigator.geolocation.watchPosition(
-      pos => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const speed = pos.coords.speed || 0;
-
-        document.getElementById("gps").innerText =
-          `GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)} | Speed: ${speed.toFixed(1)} m/s`;
-
-        const dist = distance(lat, lng, CHECKPOINT.lat, CHECKPOINT.lng);
-
-        if (dist < CHECKPOINT.radius) {
-          startListening();
-        }
-
-        if (speed > 15) {
-          console.log("❌ Possible vehicle detected");
-        }
-      },
-      err => {
-        document.getElementById("status").innerText =
-          "❌ GPS error — enable location";
-        console.error(err);
-      },
-      { enableHighAccuracy: true }
-    );
-  </script>
-
-</body>
-</html>
+/* =====================
+   DISTANCE
+===================== */
+function distance(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180*

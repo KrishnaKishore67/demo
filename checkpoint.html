@@ -8,22 +8,22 @@
   <h2>Checkpoint Active</h2>
   <button onclick="startBeacon()">Start Checkpoint</button>
 
-  <script>
-    let audioCtx;
-    let oscillator;
+ <script>
+let audioCtx, oscillator;
 
-    function startBeacon() {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function startCheckpoint() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  oscillator = audioCtx.createOscillator();
 
-      oscillator = audioCtx.createOscillator();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(17000, audioCtx.currentTime); // 17 kHz (works on phones)
+  oscillator.type = "sine";
+  oscillator.frequency.value = 18000; // 18 kHz (near ultrasonic)
 
-      oscillator.connect(audioCtx.destination);
-      oscillator.start();
+  oscillator.connect(audioCtx.destination);
+  oscillator.start();
 
-      alert("Ultrasonic checkpoint started");
-    }
-  </script>
+  document.getElementById("status").innerText =
+    "Checkpoint beacon active (18 kHz)";
+}
+</script>
 </body>
 </html>

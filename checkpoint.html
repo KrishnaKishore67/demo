@@ -2,28 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Checkpoint Ultrasonic Beacon</title>
+  <title>Checkpoint Beacon</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    button {
+      font-size: 18px;
+      padding: 10px 20px;
+    }
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+  </style>
 </head>
 <body>
-  <h2>Checkpoint Active</h2>
-  <button onclick="startBeacon()">Start Checkpoint</button>
 
- <script>
-let audioCtx, oscillator;
+  <h2>Checkpoint Beacon</h2>
+  <button id="startBtn">▶ Start Checkpoint</button>
+  <p id="status">Idle</p>
 
-function startCheckpoint() {
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  oscillator = audioCtx.createOscillator();
+  <script>
+    let audioCtx = null;
+    let oscillator = null;
 
-  oscillator.type = "sine";
-  oscillator.frequency.value = 18000; // 18 kHz (near ultrasonic)
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      if (audioCtx) return; // prevent double start
 
-  oscillator.connect(audioCtx.destination);
-  oscillator.start();
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      await audioCtx.resume(); // IMPORTANT
 
-  document.getElementById("status").innerText =
-    "Checkpoint beacon active (18 kHz)";
-}
-</script>
+      oscillator = audioCtx.createOscillator();
+      oscillator.type = "sine";
+      oscillator.frequency.value = 16000; // MUST match participant
+
+      oscillator.connect(audioCtx.destination);
+      oscillator.start();
+
+      document.getElementById("status").innerText =
+        "🔊 Checkpoint active (16 kHz beacon running)";
+    });
+  </script>
+
 </body>
 </html>

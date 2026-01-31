@@ -4,102 +4,106 @@
   <meta charset="UTF-8">
   <title>Ultrasonic Listener</title>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-    }
-    input {
-      font-size: 18px;
-      padding: 8px;
-      width: 100%;
-    }
-    button {
-      font-size: 18px;
-      padding: 10px;
-      margin-top: 10px;
-    }
-    #log {
-      margin-top: 20px;
-      font-family: monospace;
-    }
+    body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; padding: 20px; color: #1c1e21; }
+    .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+    input { font-size: 18px; padding: 12px; width: 100%; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+    button { background: #007bff; color: white; border: none; font-size: 18px; padding: 12px; width: 100%; margin-top: 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #0056b3; }
+    #status { margin-top: 15px; font-weight: bold; color: #28a745; text-align: center; }
+    #log { margin-top: 20px; padding: 10px; background: #222; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 6px; height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 12px; }
   </style>
 </head>
 <body>
 
-<h2>Participant Listener</h2>
-
-<input id="bib" placeholder="Enter Bib Number" />
-<button onclick="startListening()">START LISTENING</button>
-
-<div id="log"></div>
+<div class="card">
+  <h2>Checkpoint Listener</h2>
+  <input id="bib" type="number" placeholder="Enter Participant Bib Number" />
+  <button id="startBtn">START SCANNING</button>
+  <div id="status">Ready</div>
+  <div id="log">--- SENSOR LOGS ---</div>
+</div>
 
 <script>
-let audioCtx;
-let analyser;
-let dataArray;
+let audioCtx, analyser, dataArray;
+let isDetected = false; 
+let lastLogTime = 0;
 
-// Must match beacon frequencies
-const knownFrequencies = {
-  "CP1": [18900, 19100, 18700]
-};
+// Frequencies must exactly match the Beacon code
+const knownFrequencies = { "CP1": [18900, 19100, 18700] };
 
-function startListening() {
+document.getElementById("startBtn").addEventListener("click", async () => {
   const bib = document.getElementById("bib").value;
-  if (!bib) {
-    alert("Enter bib number");
-    return;
-  }
+  if (!bib) return alert("Please enter a Bib number");
 
-  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-    audioCtx = new AudioContext();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } 
+    });
+    
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
+    analyser.fftSize = 4096; // 💡 Increased for better frequency resolution
 
     const source = audioCtx.createMediaStreamSource(stream);
     source.connect(analyser);
 
     dataArray = new Uint8Array(analyser.frequencyBinCount);
+    document.getElementById("status").innerText = "LISTENING FOR SIGNAL...";
+    document.getElementById("startBtn").disabled = true;
+    
     detect(bib);
-  });
-}
+  } catch (err) {
+    alert("Microphone access denied: " + err.message);
+  }
+});
 
 function detect(bib) {
   analyser.getByteFrequencyData(dataArray);
-
-  const nyquist = audioCtx.sampleRate / 2;
+  const sampleRate = audioCtx.sampleRate;
+  const binCount = dataArray.length;
 
   for (let cp in knownFrequencies) {
     let hits = 0;
 
     knownFrequencies[cp].forEach(freq => {
-      const index = Math.round(freq / nyquist * dataArray.length);
-      if (dataArray[index] > 160) hits++;
+      // 💡 Better index calculation
+      const index = Math.round((freq / (sampleRate / 2)) * binCount);
+      
+      // Check surrounding bins as well in case of slight frequency drift
+      const magnitude = Math.max(dataArray[index], dataArray[index-1] || 0, dataArray[index+1] || 0);
+      
+      if (magnitude > 100) hits++; // Lowered threshold slightly for better sensitivity
     });
 
-    if (hits >= 2) {
+    // 💡 Cooldown logic: Only log once every 10 seconds to avoid spam
+    const now = Date.now();
+    if (hits >= 2 && (now - lastLogTime > 10000)) {
+      lastLogTime = now;
       logCheckpoint(cp, bib);
     }
   }
-
   requestAnimationFrame(() => detect(bib));
 }
 
 function logCheckpoint(cp, bib) {
-  const time = new Date().toISOString();
+  const time = new Date().toLocaleTimeString();
+  
+  // Visual feedback
+  const status = document.getElementById("status");
+  status.innerText = "SUCCESS: CHECKPOINT REACHED!";
+  setTimeout(() => { status.innerText = "LISTENING FOR SIGNAL..."; }, 3000);
 
   navigator.geolocation.getCurrentPosition(pos => {
-    const entry = `
-${time}
-Bib: ${bib}
-Checkpoint: ${cp}
-Lat: ${pos.coords.latitude}
-Lng: ${pos.coords.longitude}
-------------------
-`;
+    const entry = `\n[${time}] BIB:${bib} at ${cp}\nLOC: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}\n------------------`;
+    document.getElementById("log").innerText += entry;
+    
+    // 💡 HACKATHON TIP: This is where you would call your Blockchain API 
+    // to record the Hash of this event!
+  }, (err) => {
+    const entry = `\n[${time}] BIB:${bib} at ${cp}\n(GPS Denied)\n------------------`;
     document.getElementById("log").innerText += entry;
   });
 }
 </script>
-
 </body>
 </html>

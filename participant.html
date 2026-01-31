@@ -2,108 +2,108 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Ultrasonic Listener</title>
+  <title>Participant Listener</title>
   <style>
-    body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; padding: 20px; color: #1c1e21; }
-    .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
-    input { font-size: 18px; padding: 12px; width: 100%; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-    button { background: #007bff; color: white; border: none; font-size: 18px; padding: 12px; width: 100%; margin-top: 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    button:hover { background: #0056b3; }
-    #status { margin-top: 15px; font-weight: bold; color: #28a745; text-align: center; }
-    #log { margin-top: 20px; padding: 10px; background: #222; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 6px; height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 12px; }
+    body { background: #1a1a1a; color: #fff; font-family: sans-serif; text-align: center; }
+    canvas { width: 90%; height: 150px; background: #000; border: 1px solid #444; margin: 20px 0; }
+    .log-container { background: #000; color: #00ff00; text-align: left; padding: 15px; height: 200px; overflow-y: auto; font-family: monospace; border: 1px solid #00ff00; margin: 20px auto; width: 80%; }
+    input { padding: 10px; font-size: 18px; width: 250px; }
+    button { padding: 10px 20px; font-size: 18px; background: #00ff00; border: none; cursor: pointer; font-weight: bold; }
   </style>
 </head>
 <body>
-
-<div class="card">
-  <h2>Checkpoint Listener</h2>
-  <input id="bib" type="number" placeholder="Enter Participant Bib Number" />
-  <button id="startBtn">START SCANNING</button>
-  <div id="status">Ready</div>
-  <div id="log">--- SENSOR LOGS ---</div>
-</div>
-
-<script>
-let audioCtx, analyser, dataArray;
-let isDetected = false; 
-let lastLogTime = 0;
-
-// Frequencies must exactly match the Beacon code
-const knownFrequencies = { "CP1": [18900, 19100, 18700] };
-
-document.getElementById("startBtn").addEventListener("click", async () => {
-  const bib = document.getElementById("bib").value;
-  if (!bib) return alert("Please enter a Bib number");
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } 
-    });
-    
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 4096; // 💡 Increased for better frequency resolution
-
-    const source = audioCtx.createMediaStreamSource(stream);
-    source.connect(analyser);
-
-    dataArray = new Uint8Array(analyser.frequencyBinCount);
-    document.getElementById("status").innerText = "LISTENING FOR SIGNAL...";
-    document.getElementById("startBtn").disabled = true;
-    
-    detect(bib);
-  } catch (err) {
-    alert("Microphone access denied: " + err.message);
-  }
-});
-
-function detect(bib) {
-  analyser.getByteFrequencyData(dataArray);
-  const sampleRate = audioCtx.sampleRate;
-  const binCount = dataArray.length;
-
-  for (let cp in knownFrequencies) {
-    let hits = 0;
-
-    knownFrequencies[cp].forEach(freq => {
-      // 💡 Better index calculation
-      const index = Math.round((freq / (sampleRate / 2)) * binCount);
-      
-      // Check surrounding bins as well in case of slight frequency drift
-      const magnitude = Math.max(dataArray[index], dataArray[index-1] || 0, dataArray[index+1] || 0);
-      
-      if (magnitude > 100) hits++; // Lowered threshold slightly for better sensitivity
-    });
-
-    // 💡 Cooldown logic: Only log once every 10 seconds to avoid spam
-    const now = Date.now();
-    if (hits >= 2 && (now - lastLogTime > 10000)) {
-      lastLogTime = now;
-      logCheckpoint(cp, bib);
-    }
-  }
-  requestAnimationFrame(() => detect(bib));
-}
-
-function logCheckpoint(cp, bib) {
-  const time = new Date().toLocaleTimeString();
+  <h1>PARTICIPANT APP</h1>
+  <input id="bib" type="number" placeholder="Enter Bib Number" />
+  <button id="listenBtn">START SCANNING</button>
   
-  // Visual feedback
-  const status = document.getElementById("status");
-  status.innerText = "SUCCESS: CHECKPOINT REACHED!";
-  setTimeout(() => { status.innerText = "LISTENING FOR SIGNAL..."; }, 3000);
+  <canvas id="visualizer"></canvas>
+  <div id="status">READY</div>
+  <div class="log-container" id="log">--- CHECKPOINT LOGS ---</div>
 
-  navigator.geolocation.getCurrentPosition(pos => {
-    const entry = `\n[${time}] BIB:${bib} at ${cp}\nLOC: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}\n------------------`;
-    document.getElementById("log").innerText += entry;
-    
-    // 💡 HACKATHON TIP: This is where you would call your Blockchain API 
-    // to record the Hash of this event!
-  }, (err) => {
-    const entry = `\n[${time}] BIB:${bib} at ${cp}\n(GPS Denied)\n------------------`;
-    document.getElementById("log").innerText += entry;
-  });
-}
-</script>
+  <script>
+    let audioCtx, analyser, dataArray, canvas, canvasCtx;
+    const knownFrequencies = { "CP1": [15500, 16000, 16500] };
+    let lastLogTime = 0;
+
+    document.getElementById("listenBtn").addEventListener("click", async () => {
+      const bib = document.getElementById("bib").value;
+      if (!bib) return alert("Enter Bib Number!");
+
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } 
+      });
+
+      audioCtx = new AudioContext();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 4096; // High resolution
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+      
+      // Setup Visualizer
+      canvas = document.getElementById("visualizer");
+      canvasCtx = canvas.getContext("2d");
+      
+      document.getElementById("status").innerText = "LISTENING...";
+      detect(bib);
+    });
+
+    function detect(bib) {
+      analyser.getByteFrequencyData(dataArray);
+      drawVisualizer();
+
+      const nyquist = audioCtx.sampleRate / 2;
+      const avgNoise = dataArray.reduce((a, b) => a + b) / dataArray.length;
+      const threshold = avgNoise + 50; // Dynamic sensitivity
+
+      for (let cp in knownFrequencies) {
+        let hits = 0;
+        knownFrequencies[cp].forEach(freq => {
+          const index = Math.round(freq / nyquist * dataArray.length);
+          // Check peak at index and neighbors
+          const val = Math.max(dataArray[index], dataArray[index-1] || 0, dataArray[index+1] || 0);
+          if (val > threshold && val > 100) hits++;
+        });
+
+        if (hits >= 2 && (Date.now() - lastLogTime > 8000)) {
+          lastLogTime = Date.now();
+          logSuccess(cp, bib);
+        }
+      }
+      requestAnimationFrame(() => detect(bib));
+    }
+
+    function drawVisualizer() {
+      canvasCtx.fillStyle = "black";
+      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+      canvasCtx.strokeStyle = "#00ff00";
+      canvasCtx.beginPath();
+      const sliceWidth = canvas.width / dataArray.length;
+      let x = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        const v = dataArray[i] / 255.0;
+        const y = canvas.height - (v * canvas.height);
+        if (i === 0) canvasCtx.moveTo(x, y);
+        else canvasCtx.lineTo(x, y);
+        x += sliceWidth;
+      }
+      canvasCtx.stroke();
+    }
+
+    function logSuccess(cp, bib) {
+      document.getElementById("status").innerText = "!!! CHECKPOINT MATCHED !!!";
+      document.getElementById("status").style.color = "#00ff00";
+      
+      const time = new Date().toLocaleTimeString();
+      const entry = `\n[${time}] BIB ${bib} reached ${cp}`;
+      document.getElementById("log").innerText += entry;
+
+      setTimeout(() => {
+        document.getElementById("status").innerText = "LISTENING...";
+        document.getElementById("status").style.color = "white";
+      }, 3000);
+    }
+  </script>
 </body>
 </html>

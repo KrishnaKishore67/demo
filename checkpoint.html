@@ -1,51 +1,61 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
-  <title>Checkpoint Beacon</title>
+  <title>Ultrasonic Checkpoint Beacon</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
+      font-family: sans-serif;
+      text-align: center;
+      background: #111;
+      color: #0f0;
+      padding-top: 40px;
     }
     button {
-      font-size: 18px;
-      padding: 10px 20px;
-    }
-    #status {
-      margin-top: 15px;
-      font-weight: bold;
-      font-size: 18px;
+      font-size: 22px;
+      padding: 15px 30px;
     }
   </style>
 </head>
 <body>
 
-  <h2>Checkpoint Beacon</h2>
-  <button id="startBtn">▶ Start Checkpoint</button>
-  <p id="status">Idle</p>
+<h1>Checkpoint Beacon</h1>
+<h2 id="status">Stopped</h2>
+<button onclick="start()">START BEACON</button>
 
-  <script>
-    let audioCtx = null;
-    let oscillator = null;
+<script>
+let audioCtx;
+let oscillator;
+let gainNode;
 
-    document.getElementById("startBtn").addEventListener("click", async () => {
-      if (audioCtx) return; // prevent double start
+// CHANGE THIS PER CHECKPOINT
+const frequencies = [18900, 19100, 18700]; // CP1 signature
+let index = 0;
 
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      await audioCtx.resume(); // IMPORTANT
+function start() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  oscillator = audioCtx.createOscillator();
+  gainNode = audioCtx.createGain();
 
-      oscillator = audioCtx.createOscillator();
-      oscillator.type = "sine";
-      oscillator.frequency.value = 16000; // MUST match participant
+  oscillator.type = "sine";
+  oscillator.frequency.value = frequencies[0];
+  gainNode.gain.value = 0.8;
 
-      oscillator.connect(audioCtx.destination);
-      oscillator.start();
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  oscillator.start();
 
-      document.getElementById("status").innerText =
-        "🔊 Checkpoint active (16 kHz beacon running)";
-    });
-  </script>
+  document.getElementById("status").innerText = "Broadcasting ultrasonic signal";
+
+  setInterval(() => {
+    index = (index + 1) % frequencies.length;
+    oscillator.frequency.setValueAtTime(
+      frequencies[index],
+      audioCtx.currentTime
+    );
+  }, 1000);
+}
+</script>
 
 </body>
 </html>

@@ -2,125 +2,52 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Ultrasonic Beacon</title>
+  <title>Checkpoint Beacon</title>
   <style>
-    body {
-      background: #121212;
-      color: #00ff00;
-      font-family: 'Courier New', Courier, monospace;
-      text-align: center;
-      padding-top: 50px;
-    }
-    .container {
-      border: 2px solid #00ff00;
-      display: inline-block;
-      padding: 30px;
-      border-radius: 15px;
-      box-shadow: 0 0 15px #00ff00;
-    }
-    button {
-      background: #00ff00;
-      color: #000;
-      border: none;
-      font-size: 20px;
-      padding: 15px 40px;
-      cursor: pointer;
-      font-weight: bold;
-      border-radius: 5px;
-      transition: 0.3s;
-    }
-    button:hover {
-      background: #00cc00;
-      box-shadow: 0 0 20px #00ff00;
-    }
-    #status { margin-top: 20px; font-size: 1.2em; }
+    body { background: #000; color: #00ff00; font-family: monospace; text-align: center; padding-top: 50px; }
+    .status-box { border: 2px solid #00ff00; display: inline-block; padding: 20px; border-radius: 10px; }
+    button { background: #00ff00; color: #000; font-size: 24px; padding: 20px 40px; border: none; cursor: pointer; font-weight: bold; }
+    #freqDisplay { font-size: 40px; margin-top: 20px; }
   </style>
 </head>
 <body>
+  <div class="status-box">
+    <h1>CHECKPOINT BEACON v2</h1>
+    <button id="startBtn">ACTIVATE BEACON</button>
+    <div id="status">STATUS: IDLE</div>
+    <div id="freqDisplay">--- Hz</div>
+  </div>
 
-<div class="container">
-  <h1>BEACON SYSTEM</h1>
-  <button id="toggleBtn">START BEACON</button>
-  <div id="status">STATUS: STANDBY</div>
-</div>
-
-<script>
-let audioCtx;
-let oscillator;
-let isPlaying = false;
-let freqInterval;
-
-// High frequencies for the beacon
-const frequencies = [18900, 19100, 18700];
-
-const toggleBtn = document.getElementById("toggleBtn");
-const statusText = document.getElementById("status");
-
-toggleBtn.addEventListener("click", () => {
-  if (!isPlaying) {
-    startBeacon();
-  } else {
-    stopBeacon();
-  }
-});
-
-function startBeacon() {
-  try {
-    // 1. Initialize Context
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-
-    // 2. Handle suspended state (Chrome/Safari requirement)
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-
-    // 3. Create Oscillator
-    oscillator = audioCtx.createOscillator();
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(frequencies[0], audioCtx.currentTime);
-
-    const gainNode = audioCtx.createGain();
-    gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); // Lower gain for safety
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-
-    oscillator.start();
-    isPlaying = true;
-
-    // 4. Update UI
-    toggleBtn.innerText = "STOP BEACON";
-    statusText.innerText = "STATUS: BROADCASTING...";
-    statusText.style.color = "#ff3300";
-
-    // 5. Frequency Cycling
+  <script>
+    let audioCtx, oscillator, freqInterval;
+    const frequencies = [15500, 16000, 16500]; // Highly catchable range
     let index = 0;
-    freqInterval = setInterval(() => {
-      index = (index + 1) % frequencies.length;
-      // Use ramp for smoother transitions to avoid clicks
-      oscillator.frequency.exponentialRampToValueAtTime(frequencies[index], audioCtx.currentTime + 0.1);
-    }, 1000);
 
-  } catch (err) {
-    console.error(err);
-    alert("Beacon Failed: " + err.message);
-  }
-}
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        oscillator = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
 
-function stopBeacon() {
-  if (oscillator) {
-    oscillator.stop();
-    oscillator.disconnect();
-  }
-  clearInterval(freqInterval);
-  isPlaying = false;
-  toggleBtn.innerText = "START BEACON";
-  statusText.innerText = "STATUS: STANDBY";
-  statusText.style.color = "#00ff00";
-}
-</script>
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequencies[0], audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
 
+        oscillator.connect(gain);
+        gain.connect(audioCtx.destination);
+        oscillator.start();
+
+        document.getElementById("status").innerText = "BROADCASTING...";
+        document.getElementById("startBtn").style.display = "none";
+
+        freqInterval = setInterval(() => {
+          index = (index + 1) % frequencies.length;
+          // Smooth transition to prevent clicking sounds
+          oscillator.frequency.exponentialRampToValueAtTime(frequencies[index], audioCtx.currentTime + 0.1);
+          document.getElementById("freqDisplay").innerText = frequencies[index] + " Hz";
+        }, 1000);
+      }
+    });
+  </script>
 </body>
 </html>

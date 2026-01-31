@@ -2,17 +2,17 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Ultrasonic Checkpoint Beacon</title>
+  <title>Ultrasonic Beacon</title>
   <style>
     body {
+      background: #000;
+      color: #0f0;
       font-family: sans-serif;
       text-align: center;
-      background: #111;
-      color: #0f0;
       padding-top: 40px;
     }
     button {
-      font-size: 22px;
+      font-size: 24px;
       padding: 15px 30px;
     }
   </style>
@@ -21,40 +21,48 @@
 
 <h1>Checkpoint Beacon</h1>
 <h2 id="status">Stopped</h2>
-<button onclick="start()">START BEACON</button>
+<button id="startBtn">START BEACON</button>
 
 <script>
 let audioCtx;
 let oscillator;
-let gainNode;
-
-// CHANGE THIS PER CHECKPOINT
-const frequencies = [18900, 19100, 18700]; // CP1 signature
 let index = 0;
 
-function start() {
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  oscillator = audioCtx.createOscillator();
-  gainNode = audioCtx.createGain();
+// CHANGE PER CHECKPOINT
+const frequencies = [18900, 19100, 18700];
 
-  oscillator.type = "sine";
-  oscillator.frequency.value = frequencies[0];
-  gainNode.gain.value = 0.8;
+document.getElementById("startBtn").addEventListener("click", async () => {
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  oscillator.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-  oscillator.start();
+    await audioCtx.resume(); // 🔑 REQUIRED
 
-  document.getElementById("status").innerText = "Broadcasting ultrasonic signal";
+    oscillator = audioCtx.createOscillator();
+    oscillator.type = "sine";
+    oscillator.frequency.value = frequencies[0];
 
-  setInterval(() => {
-    index = (index + 1) % frequencies.length;
-    oscillator.frequency.setValueAtTime(
-      frequencies[index],
-      audioCtx.currentTime
-    );
-  }, 1000);
-}
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.9;
+
+    oscillator.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    oscillator.start();
+
+    document.getElementById("status").innerText = "Broadcasting ultrasonic signal";
+
+    setInterval(() => {
+      index = (index + 1) % frequencies.length;
+      oscillator.frequency.setValueAtTime(
+        frequencies[index],
+        audioCtx.currentTime
+      );
+    }, 1000);
+
+  } catch (err) {
+    alert("Audio failed: " + err.message);
+  }
+});
 </script>
 
 </body>

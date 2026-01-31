@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Participant Tracker</title>
+</head>
+<body>
+  <h2>Status</h2>
+  <p id="status">Waiting for checkpoint...</p>
+  <p id="gps">GPS: --</p>
+
+  <script>
+    // ======================
+    // CONFIGURATION
+    // ======================
+    const TARGET_FREQ = 17000;   // Hz
+    const THRESHOLD = 130;       // sensitivity
+
+    const CHECKPOINT = {
+      lat: 9.5916,     // change to your checkpoint latitude
+      lng: 76.5222,    // change to your checkpoint longitude
+      radius: 30       // meters
+    };
+
+    let ultrasonicDetected = false;
+    let isListening = false;
+
+    // ======================
+    // DISTANCE CALCULATION
+    // ======================
+    function distance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+
+      return R * Math.sqrt(dLat * dLat + dLon * dLon);
+    }
+
+    // ======================
+    // ULTRASONIC LISTENER
+    // ======================
+    async function startListening() {
+      if (isListening) return;
+      isListening = true;
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioCtx = new AudioContext();
+      const analyser = audioCtx.createAnalyser();
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      analyser.fftSize = 4096;
+      source.connect(analyser);
+
+      const buffer = new Uint8Array(analyser.frequencyBinCount);
+
+      function detect() {
+        analyser.getByteFrequencyData(buffer);
+
+        const freqIndex = Math.round(
+          TARGET_FREQ / (audioCtx.sampleRate / analyser.fftSize)
+        );
+
+        if (buffer[freqIndex] > THRESHOLD) {
+          ultrasonicDetected = true;
+          document.getElementById("status").innerText =
+            "✅ CHECKPOINT VERIFIED";
+        }
+
+        requestAnimationFrame(detect);
+      }
+
+      detect();
+    }
+
+    // ======================
+    // GPS TRACKING
+    // ======================
+    navigator.geolocation.watchPosition(
+      position => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const speed = position.coords.speed || 0;
+
+        document.getElementById("gps").innerText =
+          `GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)} | Speed: ${speed.toFixed(1)} m/s`;
+
+        const dist = distance(lat, lng, CHECKPOINT.lat, CHECKPOINT.lng);
+
+        if (dist < CHECKPOINT.radius) {
+          startListening();
+        }
+
+        if (speed > 15) {
+          console.log("❌ Vehicle detected");
+        }
+      },
+      error => console.error(error),
+      { enableHighAccuracy: true }
+    );
+  </script>
+</body>
+</html>
